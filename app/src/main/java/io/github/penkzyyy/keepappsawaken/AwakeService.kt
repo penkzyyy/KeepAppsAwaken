@@ -116,7 +116,7 @@ class AwakeService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         val n = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Keep Apps Awaken")
             .setContentText("A vigiar as aplicações selecionadas")
             .setContentIntent(open)
