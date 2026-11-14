@@ -1,20 +1,12 @@
 package io.github.penkzyyy.keepappsawaken
 
-import android.Manifest
 import android.app.Activity
-import android.app.AppOpsManager
-import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
@@ -36,9 +28,12 @@ class MainActivity : Activity() {
     private lateinit var selected: MutableSet<String>
     private lateinit var statusText: TextView
     private lateinit var serviceSwitch: Switch
+    private var appliedTheme = Prefs.THEME_SYSTEM
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        AppTheme.apply(this)
         super.onCreate(savedInstanceState)
+        appliedTheme = Prefs.getTheme(this)
         selected = Prefs.getSelected(this).toMutableSet()
         allApps = loadApps()
 
@@ -47,10 +42,21 @@ class MainActivity : Activity() {
             setPadding(dp(16), dp(24), dp(16), dp(8))
         }
 
-        root.addView(TextView(this).apply {
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        header.addView(TextView(this).apply {
             text = "Keep Apps Awaken"
             textSize = 22f
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        header.addView(Button(this).apply {
+            text = "Definições"
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+            }
         })
+        root.addView(header)
 
         statusText = TextView(this).apply { textSize = 13f }
         root.addView(statusText)
@@ -60,12 +66,6 @@ class MainActivity : Activity() {
             setPadding(0, dp(8), 0, dp(8))
         }
         root.addView(serviceSwitch)
-
-        val permBtn = Button(this).apply {
-            text = "Conceder permissões"
-            setOnClickListener { requestPermissions() }
-        }
-        root.addView(permBtn)
 
         val search = EditText(this).apply { hint = "Pesquisar aplicações" }
         root.addView(search)
@@ -87,68 +87,34 @@ class MainActivity : Activity() {
         })
 
         serviceSwitch.setOnCheckedChangeListener { _, on ->
-            Prefs.setEnabled(this, on)
             if (on) {
-                if (hasUsageAccess()) AwakeService.start(this)
-                else {
+                if (Perms.hasUsageAccess(this)) {
+                    Prefs.setEnabled(this, true)
+                    AwakeService.start(this)
+                } else {
                     serviceSwitch.isChecked = false
-                    requestPermissions()
+                    Perms.requestNext(this)
                 }
-            } else AwakeService.stop(this)
+            } else {
+                Prefs.setEnabled(this, false)
+                AwakeService.stop(this)
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
+        if (Prefs.getTheme(this) != appliedTheme) {
+            recreate()
+            return
+        }
         serviceSwitch.isChecked = Prefs.isEnabled(this)
         updateStatus()
     }
 
     private fun updateStatus() {
-        val usage = if (hasUsageAccess()) "OK" else "em falta"
-        val battery = if (isBatteryUnrestricted()) "OK" else "em falta"
-        statusText.text = "Estatísticas de uso: $usage  |  Bateria sem restrições: $battery  |  Selecionadas: ${selected.size}"
-    }
-
-    private fun hasUsageAccess(): Boolean {
-        val ops = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-        @Suppress("DEPRECATION")
-        val mode = if (Build.VERSION.SDK_INT >= 29) {
-            ops.unsafeCheckOpNoThrow(
-                AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(), packageName
-            )
-        } else {
-            ops.checkOpNoThrow(
-                AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(), packageName
-            )
-        }
-        return mode == AppOpsManager.MODE_ALLOWED
-    }
-
-    private fun isBatteryUnrestricted(): Boolean {
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        return pm.isIgnoringBatteryOptimizations(packageName)
-    }
-
-    private fun requestPermissions() {
-        if (!hasUsageAccess()) {
-            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-            return
-        }
-        if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
-            return
-        }
-        if (!isBatteryUnrestricted()) {
-            startActivity(
-                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                    .setData(Uri.parse("package:$packageName"))
-            )
-        }
+        val perms = if (Perms.allGranted(this)) "OK" else "em falta (ver Definições)"
+        statusText.text = "Permissões: $perms  |  Selecionadas: ${selected.size}"
     }
 
     private fun loadApps(): List<AppItem> {
@@ -180,7 +146,7 @@ class MainActivity : Activity() {
             val row = LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(0, dp(6), 0, dp(6))
-                gravity = android.view.Gravity.CENTER_VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
             }
             row.addView(ImageView(this@MainActivity).apply {
                 setImageDrawable(item.icon)
