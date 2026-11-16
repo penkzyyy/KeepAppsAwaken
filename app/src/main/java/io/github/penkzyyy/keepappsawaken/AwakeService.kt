@@ -39,6 +39,7 @@ class AwakeService : Service() {
         pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         lastEventTime = System.currentTimeMillis() - 60_000
         createChannel()
+        Brightness.restore(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -73,6 +74,11 @@ class AwakeService : Service() {
                 currentForeground in selected
 
         if (shouldStayAwake) acquire() else release()
+        if (shouldStayAwake && Prefs.isBrightnessEnabled(this)) {
+            Brightness.apply(this)
+        } else {
+            Brightness.restore(this)
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -135,6 +141,7 @@ class AwakeService : Service() {
     override fun onDestroy() {
         handler.removeCallbacks(poll)
         release()
+        Brightness.restore(this)
         super.onDestroy()
     }
 

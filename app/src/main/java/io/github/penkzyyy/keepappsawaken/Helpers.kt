@@ -111,3 +111,44 @@ object Notif {
         )
     }
 }
+object Brightness {
+    /** Desliga o brilho automático e põe o brilho no máximo, guardando o estado anterior. */
+    fun apply(ctx: Context) {
+        if (Prefs.isBrightnessActive(ctx) || !Settings.System.canWrite(ctx)) return
+        try {
+            val cr = ctx.contentResolver
+            val mode = Settings.System.getInt(
+                cr, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+            )
+            val value = Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS, 128)
+            Prefs.saveBrightness(ctx, mode, value)
+            Settings.System.putInt(
+                cr, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+            )
+            Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, 255)
+        } catch (e: Exception) {
+            // Sem permissão ou erro do sistema: ignora
+        }
+    }
+
+    /** Repõe o brilho e o modo que existiam antes de apply(). */
+    fun restore(ctx: Context) {
+        if (!Prefs.isBrightnessActive(ctx)) return
+        try {
+            if (Settings.System.canWrite(ctx)) {
+                val cr = ctx.contentResolver
+                Settings.System.putInt(
+                    cr, Settings.System.SCREEN_BRIGHTNESS, Prefs.prevBrightnessValue(ctx)
+                )
+                Settings.System.putInt(
+                    cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Prefs.prevBrightnessMode(ctx)
+                )
+            }
+        } catch (e: Exception) {
+            // ignora
+        }
+        Prefs.clearBrightness(ctx)
+    }
+}

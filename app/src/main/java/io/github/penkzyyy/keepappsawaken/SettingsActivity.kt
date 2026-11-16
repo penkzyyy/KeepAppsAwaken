@@ -1,19 +1,25 @@
 package io.github.penkzyyy.keepappsawaken
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 
 class SettingsActivity : Activity() {
 
     private lateinit var permStatus: TextView
+    private lateinit var brightSwitch: Switch
+    private lateinit var brightStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AppTheme.apply(this)
@@ -74,6 +80,19 @@ class SettingsActivity : Activity() {
         }
         root.addView(group)
 
+        // Brilho
+        root.addView(section("Brilho"))
+        brightSwitch = Switch(this).apply { text = "Desativar brilho automático" }
+        root.addView(brightSwitch)
+        root.addView(TextView(this).apply {
+            textSize = 13f
+            text = "Enquanto o serviço estiver ativo e uma aplicação escolhida estiver aberta, " +
+                    "desliga o brilho automático e põe o brilho no máximo. " +
+                    "Ao sair da aplicação, volta ao que tinhas antes."
+        })
+        brightStatus = TextView(this).apply { textSize = 13f }
+        root.addView(brightStatus)
+
         // Barra de estado
         root.addView(section("Barra de estado"))
         root.addView(TextView(this).apply {
@@ -93,6 +112,29 @@ class SettingsActivity : Activity() {
     override fun onResume() {
         super.onResume()
         updatePermStatus()
+        bindBrightnessSwitch()
+    }
+
+    private fun bindBrightnessSwitch() {
+        val canWrite = Settings.System.canWrite(this)
+        brightSwitch.setOnCheckedChangeListener(null)
+        brightSwitch.isChecked = Prefs.isBrightnessEnabled(this) && canWrite
+        brightSwitch.setOnCheckedChangeListener { _, on ->
+            if (on && !Settings.System.canWrite(this)) {
+                brightSwitch.isChecked = false
+                Toast.makeText(
+                    this, "Concede a permissão e volta a ligar", Toast.LENGTH_LONG
+                ).show()
+                startActivity(
+                    Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
+                        .setData(Uri.parse("package:$packageName"))
+                )
+            } else {
+                Prefs.setBrightnessEnabled(this, on)
+            }
+        }
+        brightStatus.text = "Modificar definições do sistema: " +
+                if (canWrite) "OK" else "em falta"
     }
 
     private fun updatePermStatus() {
