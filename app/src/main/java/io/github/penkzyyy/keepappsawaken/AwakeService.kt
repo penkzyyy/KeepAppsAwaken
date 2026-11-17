@@ -85,10 +85,10 @@ class AwakeService : Service() {
     private fun acquire() {
         if (wakeLock?.isHeld == true) return
         wakeLock = pm.newWakeLock(
-            PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ON_AFTER_RELEASE,
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ON_AFTER_RELEASE,
             "KeepAppsAwaken:screen"
         ).apply { acquire(WAKE_LOCK_TIMEOUT_MS) }
-    }
+    }\
 
     private fun release() {
         wakeLock?.let { if (it.isHeld) it.release() }
